@@ -10,7 +10,7 @@
 <script>
 YUI().use('gallery-storage-lite', function (Y) {
 
-    // For full compatibility with IE 5-7 and Safari 3.x, you should listen for
+    // For full compatibility with IE 6-7 and Safari 3.x, you should listen for
     // the storage-lite:ready event before making storage calls. If you're not
     // targeting those browsers, you can safely ignore this step.
     Y.StorageLite.on('storage-lite:ready', function () {
@@ -19,7 +19,7 @@ YUI().use('gallery-storage-lite', function (Y) {
         Y.StorageLite.setItem('kittens', 'fluffy and cute');
 
         // If you set the optional third parameter to true, you can use any
-        // serializable Object as the value and it will automatically be stored
+        // serializable object as the value and it will automatically be stored
         // as a JSON string.
         Y.StorageLite.setItem('pies', ['apple', 'pumpkin', 'pecan'], true);
 
