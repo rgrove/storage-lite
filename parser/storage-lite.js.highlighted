@@ -1,0 +1,320 @@
+<div class="highlight"><pre><span class="cm">/*global YUI */</span>
+<span class="cm">/*jslint onevar: true, browser: true, undef: true, bitwise: true, regexp: true, newcap: true, immed: true */</span>
+
+<span class="cm">/**</span>
+<span class="cm"> * Implements a persistent local key/value data store similar to HTML5&#39;s</span>
+<span class="cm"> * localStorage. Should work in IE5+, Firefox 2+, Safari 3.1+, Chrome 4+, and</span>
+<span class="cm"> * Opera 10.5+.</span>
+<span class="cm"> *</span>
+<span class="cm"> * @module gallery-storage-lite</span>
+<span class="cm"> */</span>
+
+<span class="nx">YUI</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="s1">&#39;gallery-storage-lite&#39;</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">Y</span><span class="p">)</span> <span class="p">{</span>
+
+<span class="c1">// -- Shorthand ----------------------------------------------------------------</span>
+<span class="kd">var</span> <span class="nx">d</span>           <span class="o">=</span> <span class="nx">Y</span><span class="p">.</span><span class="nx">config</span><span class="p">.</span><span class="nx">doc</span><span class="p">,</span>
+    <span class="nx">w</span>           <span class="o">=</span> <span class="nx">Y</span><span class="p">.</span><span class="nx">config</span><span class="p">.</span><span class="nx">win</span><span class="p">,</span>
+    <span class="nx">JSON</span>        <span class="o">=</span> <span class="nx">Y</span><span class="p">.</span><span class="nx">JSON</span><span class="p">,</span>
+    <span class="nx">StorageLite</span> <span class="o">=</span> <span class="nx">Y</span><span class="p">.</span><span class="nx">namespace</span><span class="p">(</span><span class="s1">&#39;StorageLite&#39;</span><span class="p">),</span>
+
+<span class="c1">// -- Private Constants --------------------------------------------------------</span>
+<span class="nx">DB_NAME</span>           <span class="o">=</span> <span class="s1">&#39;yui_storage_lite&#39;</span><span class="p">,</span>
+<span class="nx">DB_DISPLAYNAME</span>    <span class="o">=</span> <span class="s1">&#39;YUI StorageLite data&#39;</span><span class="p">,</span>
+<span class="nx">DB_MAXSIZE</span>        <span class="o">=</span> <span class="mi">1048576</span><span class="p">,</span>
+<span class="nx">DB_VERSION</span>        <span class="o">=</span> <span class="s1">&#39;1.0&#39;</span><span class="p">,</span>
+
+<span class="nx">EVT_READY</span>         <span class="o">=</span> <span class="s1">&#39;ready&#39;</span><span class="p">,</span>
+
+<span class="nx">MODE_NOOP</span>         <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+<span class="nx">MODE_HTML5</span>        <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+<span class="nx">MODE_GECKO</span>        <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
+<span class="nx">MODE_DB</span>           <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
+<span class="nx">MODE_USERDATA</span>     <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
+
+<span class="nx">USERDATA_PATH</span>     <span class="o">=</span> <span class="s1">&#39;yui_storage_lite&#39;</span><span class="p">,</span>
+<span class="nx">USERDATA_NAME</span>     <span class="o">=</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span>
+
+<span class="c1">// -- Private Variables --------------------------------------------------------</span>
+<span class="nx">data</span> <span class="o">=</span> <span class="p">{},</span>
+<span class="nx">storageDriver</span><span class="p">,</span>
+<span class="nx">storageMode</span><span class="p">;</span>
+
+<span class="c1">// -- Implementation -----------------------------------------------------------</span>
+
+<span class="c1">// Determine the best available storage mode.</span>
+<span class="k">if</span> <span class="p">(</span><span class="nx">w</span><span class="p">.</span><span class="nx">localStorage</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">storageMode</span> <span class="o">=</span> <span class="nx">MODE_HTML5</span><span class="p">;</span>
+<span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="nx">w</span><span class="p">.</span><span class="nx">globalStorage</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">storageMode</span> <span class="o">=</span> <span class="nx">MODE_GECKO</span><span class="p">;</span>
+<span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="nx">w</span><span class="p">.</span><span class="nx">openDatabase</span> <span class="o">&amp;&amp;</span> <span class="nx">navigator</span><span class="p">.</span><span class="nx">userAgent</span><span class="p">.</span><span class="nx">indexOf</span><span class="p">(</span><span class="s1">&#39;Chrome&#39;</span><span class="p">)</span> <span class="o">===</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">storageMode</span> <span class="o">=</span> <span class="nx">MODE_DB</span><span class="p">;</span>
+<span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="nx">Y</span><span class="p">.</span><span class="nx">UA</span><span class="p">.</span><span class="nx">ie</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">storageMode</span> <span class="o">=</span> <span class="nx">MODE_USERDATA</span><span class="p">;</span>
+<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+    <span class="nx">storageMode</span> <span class="o">=</span> <span class="nx">MODE_NOOP</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="nx">Y</span><span class="p">.</span><span class="nx">StorageFullError</span> <span class="o">=</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">message</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">Y</span><span class="p">.</span><span class="nx">StorageFullError</span><span class="p">.</span><span class="nx">superclass</span><span class="p">.</span><span class="nx">constructor</span><span class="p">.</span><span class="nx">call</span><span class="p">(</span><span class="nx">message</span><span class="p">);</span>
+
+    <span class="k">this</span><span class="p">.</span><span class="nx">name</span>    <span class="o">=</span> <span class="s1">&#39;StorageFullError&#39;</span><span class="p">;</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">message</span> <span class="o">=</span> <span class="nx">message</span> <span class="o">||</span> <span class="s1">&#39;Maximum storage capacity reached&#39;</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="nx">Y</span><span class="p">.</span><span class="nx">UA</span><span class="p">.</span><span class="nx">ie</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">this</span><span class="p">.</span><span class="nx">description</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nx">message</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">};</span>
+
+<span class="nx">Y</span><span class="p">.</span><span class="nx">extend</span><span class="p">(</span><span class="nx">Y</span><span class="p">.</span><span class="nx">StorageFullError</span><span class="p">,</span> <span class="nb">Error</span><span class="p">);</span>
+
+<span class="cm">/**</span>
+<span class="cm"> * Provides a persistent local key/value data store similar to HTML5&#39;s</span>
+<span class="cm"> * localStorage.</span>
+<span class="cm"> *</span>
+<span class="cm"> * @class StorageLite</span>
+<span class="cm"> * @static</span>
+<span class="cm"> */</span>
+
+<span class="c1">// -- Public Events ------------------------------------------------------------</span>
+<span class="nx">Y</span><span class="p">.</span><span class="nx">augment</span><span class="p">(</span><span class="nx">StorageLite</span><span class="p">,</span> <span class="nx">Y</span><span class="p">.</span><span class="nx">EventTarget</span><span class="p">,</span> <span class="kc">true</span><span class="p">,</span> <span class="kc">null</span><span class="p">,</span> <span class="p">{</span>
+    <span class="nx">emitFacade</span> <span class="o">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="nx">prefix</span>     <span class="o">:</span> <span class="s1">&#39;storage-lite&#39;</span><span class="p">,</span>
+    <span class="nx">preventable</span><span class="o">:</span> <span class="kc">false</span>
+<span class="p">});</span>
+
+<span class="cm">/**</span>
+<span class="cm"> * Fired when the storage interface is loaded and ready for use.</span>
+<span class="cm"> *</span>
+<span class="cm"> * @event storage-lite:ready</span>
+<span class="cm"> */</span>
+<span class="nx">StorageLite</span><span class="p">.</span><span class="nx">publish</span><span class="p">(</span><span class="nx">EVT_READY</span><span class="p">,</span> <span class="p">{</span><span class="nx">fireOnce</span><span class="o">:</span> <span class="kc">true</span><span class="p">});</span>
+
+<span class="nx">Y</span><span class="p">.</span><span class="nx">mix</span><span class="p">(</span><span class="nx">StorageLite</span><span class="p">,</span> <span class="p">{</span>
+    <span class="c1">// -- Public Methods -------------------------------------------------------</span>
+
+    <span class="cm">/**</span>
+<span class="cm">     * Removes all items from the data store.</span>
+<span class="cm">     *</span>
+<span class="cm">     * @method clear</span>
+<span class="cm">     */</span>
+    <span class="nx">clear</span><span class="o">:</span> <span class="kd">function</span> <span class="p">()</span> <span class="p">{},</span>
+
+    <span class="cm">/**</span>
+<span class="cm">     * Returns the item with the specified key, or &lt;code&gt;null&lt;/code&gt; if the item</span>
+<span class="cm">     * was not found.</span>
+<span class="cm">     *</span>
+<span class="cm">     * @method getItem</span>
+<span class="cm">     * @param {String} key</span>
+<span class="cm">     * @param {bool} json (optional) &lt;code&gt;true&lt;/code&gt; if the item is a JSON</span>
+<span class="cm">     *     string and should be parsed before being returned</span>
+<span class="cm">     * @return {Object|null} item or &lt;code&gt;null&lt;/code&gt; if not found</span>
+<span class="cm">     */</span>
+    <span class="nx">getItem</span><span class="o">:</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">key</span><span class="p">,</span> <span class="nx">json</span><span class="p">)</span> <span class="p">{</span> <span class="k">return</span> <span class="kc">null</span><span class="p">;</span> <span class="p">},</span>
+
+    <span class="cm">/**</span>
+<span class="cm">     * Returns the number of items in the data store.</span>
+<span class="cm">     *</span>
+<span class="cm">     * @method length</span>
+<span class="cm">     * @return {Number} number of items in the data store</span>
+<span class="cm">     */</span>
+    <span class="nx">length</span><span class="o">:</span> <span class="kd">function</span> <span class="p">()</span> <span class="p">{</span> <span class="k">return</span> <span class="mi">0</span><span class="p">;</span> <span class="p">},</span>
+
+    <span class="cm">/**</span>
+<span class="cm">     * Removes the item with the specified key.</span>
+<span class="cm">     *</span>
+<span class="cm">     * @method removeItem</span>
+<span class="cm">     * @param {String} key</span>
+<span class="cm">     */</span>
+    <span class="nx">removeItem</span><span class="o">:</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">key</span><span class="p">)</span> <span class="p">{},</span>
+
+    <span class="cm">/**</span>
+<span class="cm">     * Stores an item under the specified key. If the key already exists in the</span>
+<span class="cm">     * data store, it will be replaced.</span>
+<span class="cm">     *</span>
+<span class="cm">     * @method setItem</span>
+<span class="cm">     * @param {String} key</span>
+<span class="cm">     * @param {Object} value</span>
+<span class="cm">     * @param {bool} json (optional) &lt;code&gt;true&lt;/code&gt; if the item should be</span>
+<span class="cm">     *     serialized to a JSON string before being stored</span>
+<span class="cm">     */</span>
+    <span class="nx">setItem</span><span class="o">:</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">key</span><span class="p">,</span> <span class="nx">value</span><span class="p">)</span> <span class="p">{}</span>
+
+<span class="p">});</span>
+
+<span class="k">if</span> <span class="p">(</span><span class="nx">storageMode</span> <span class="o">===</span> <span class="nx">MODE_HTML5</span> <span class="o">||</span> <span class="nx">storageMode</span> <span class="o">===</span> <span class="nx">MODE_GECKO</span><span class="p">)</span> <span class="p">{</span>
+
+    <span class="c1">// Common methods shared by the HTML5 and Gecko implementations.</span>
+    <span class="nx">Y</span><span class="p">.</span><span class="nx">mix</span><span class="p">(</span><span class="nx">StorageLite</span><span class="p">,</span> <span class="p">{</span>
+        <span class="nx">length</span><span class="o">:</span> <span class="kd">function</span> <span class="p">()</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="nx">storageDriver</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span>
+        <span class="p">},</span>
+
+        <span class="nx">removeItem</span><span class="o">:</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">key</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">storageDriver</span><span class="p">.</span><span class="nx">removeItem</span><span class="p">(</span><span class="nx">key</span><span class="p">);</span>
+        <span class="p">},</span>
+
+        <span class="nx">setItem</span><span class="o">:</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">key</span><span class="p">,</span> <span class="nx">value</span><span class="p">,</span> <span class="nx">json</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">storageDriver</span><span class="p">.</span><span class="nx">setItem</span><span class="p">(</span><span class="nx">key</span><span class="p">,</span> <span class="nx">json</span> <span class="o">?</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">value</span><span class="p">)</span> <span class="o">:</span> <span class="nx">value</span><span class="p">);</span>
+        <span class="p">}</span>
+    <span class="p">},</span> <span class="kc">true</span><span class="p">);</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="nx">storageMode</span> <span class="o">===</span> <span class="nx">MODE_HTML5</span><span class="p">)</span> <span class="p">{</span>
+
+        <span class="c1">// HTML5 localStorage methods. Currently supported by IE8, Firefox 3.5+,</span>
+        <span class="c1">// Safari 4+, Chrome 4+, and Opera 10.5+.</span>
+        <span class="nx">storageDriver</span> <span class="o">=</span> <span class="nx">w</span><span class="p">.</span><span class="nx">localStorage</span><span class="p">;</span>
+
+        <span class="nx">Y</span><span class="p">.</span><span class="nx">mix</span><span class="p">(</span><span class="nx">StorageLite</span><span class="p">,</span> <span class="p">{</span>
+            <span class="nx">clear</span><span class="o">:</span> <span class="kd">function</span> <span class="p">()</span> <span class="p">{</span>
+                <span class="nx">storageDriver</span><span class="p">.</span><span class="nx">clear</span><span class="p">();</span>
+            <span class="p">},</span>
+
+            <span class="nx">getItem</span><span class="o">:</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">key</span><span class="p">,</span> <span class="nx">json</span><span class="p">)</span> <span class="p">{</span>
+                <span class="k">try</span> <span class="p">{</span>
+                    <span class="k">return</span> <span class="nx">json</span> <span class="o">?</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">storageDriver</span><span class="p">.</span><span class="nx">getItem</span><span class="p">(</span><span class="nx">key</span><span class="p">))</span> <span class="o">:</span>
+                            <span class="nx">storageDriver</span><span class="p">.</span><span class="nx">getItem</span><span class="p">(</span><span class="nx">key</span><span class="p">);</span>
+                <span class="p">}</span> <span class="k">catch</span> <span class="p">(</span><span class="nx">ex</span><span class="p">)</span> <span class="p">{</span>
+                    <span class="k">return</span> <span class="kc">null</span><span class="p">;</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+        <span class="p">},</span> <span class="kc">true</span><span class="p">);</span>
+
+    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="nx">storageMode</span> <span class="o">===</span> <span class="nx">MODE_GECKO</span><span class="p">)</span> <span class="p">{</span>
+
+        <span class="c1">// Gecko globalStorage methods. Supported by Firefox 2 and 3.0.</span>
+        <span class="nx">storageDriver</span> <span class="o">=</span> <span class="nx">w</span><span class="p">.</span><span class="nx">globalStorage</span><span class="p">[</span><span class="nx">w</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">hostname</span><span class="p">];</span>
+
+        <span class="nx">Y</span><span class="p">.</span><span class="nx">mix</span><span class="p">(</span><span class="nx">StorageLite</span><span class="p">,</span> <span class="p">{</span>
+            <span class="nx">clear</span><span class="o">:</span> <span class="kd">function</span> <span class="p">()</span> <span class="p">{</span>
+                <span class="k">for</span> <span class="p">(</span><span class="kd">var</span> <span class="nx">key</span> <span class="k">in</span> <span class="nx">storageDriver</span><span class="p">)</span> <span class="p">{</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="nx">storageDriver</span><span class="p">.</span><span class="nx">hasOwnProperty</span><span class="p">(</span><span class="nx">key</span><span class="p">))</span> <span class="p">{</span>
+                        <span class="nx">storageDriver</span><span class="p">.</span><span class="nx">removeItem</span><span class="p">(</span><span class="nx">key</span><span class="p">);</span>
+                        <span class="k">delete</span> <span class="nx">storageDriver</span><span class="p">[</span><span class="nx">key</span><span class="p">];</span>
+                    <span class="p">}</span>
+                <span class="p">}</span>
+            <span class="p">},</span>
+
+            <span class="nx">getItem</span><span class="o">:</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">key</span><span class="p">,</span> <span class="nx">json</span><span class="p">)</span> <span class="p">{</span>
+                <span class="k">try</span> <span class="p">{</span>
+                    <span class="k">return</span> <span class="nx">json</span> <span class="o">?</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">storageDriver</span><span class="p">[</span><span class="nx">key</span><span class="p">].</span><span class="nx">value</span><span class="p">)</span> <span class="o">:</span>
+                            <span class="nx">storageDriver</span><span class="p">[</span><span class="nx">key</span><span class="p">].</span><span class="nx">value</span><span class="p">;</span>
+                <span class="p">}</span> <span class="k">catch</span> <span class="p">(</span><span class="nx">ex</span><span class="p">)</span> <span class="p">{</span>
+                    <span class="k">return</span> <span class="kc">null</span><span class="p">;</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+        <span class="p">},</span> <span class="kc">true</span><span class="p">);</span>
+
+    <span class="p">}</span>
+
+    <span class="nx">StorageLite</span><span class="p">.</span><span class="nx">fire</span><span class="p">(</span><span class="nx">EVT_READY</span><span class="p">);</span>
+
+<span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="nx">storageMode</span> <span class="o">===</span> <span class="nx">MODE_DB</span> <span class="o">||</span> <span class="nx">storageMode</span> <span class="o">===</span> <span class="nx">MODE_USERDATA</span><span class="p">)</span> <span class="p">{</span>
+
+    <span class="c1">// Common methods shared by the database and userdata implementations.</span>
+    <span class="nx">Y</span><span class="p">.</span><span class="nx">mix</span><span class="p">(</span><span class="nx">StorageLite</span><span class="p">,</span> <span class="p">{</span>
+        <span class="nx">clear</span><span class="o">:</span> <span class="kd">function</span> <span class="p">()</span> <span class="p">{</span>
+            <span class="nx">data</span> <span class="o">=</span> <span class="p">{};</span>
+            <span class="nx">StorageLite</span><span class="p">.</span><span class="nx">_save</span><span class="p">();</span>
+        <span class="p">},</span>
+
+        <span class="nx">getItem</span><span class="o">:</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">key</span><span class="p">,</span> <span class="nx">json</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="nx">data</span><span class="p">.</span><span class="nx">hasOwnProperty</span><span class="p">(</span><span class="nx">key</span><span class="p">)</span> <span class="o">?</span> <span class="nx">data</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span> <span class="o">:</span> <span class="kc">null</span><span class="p">;</span>
+        <span class="p">},</span>
+
+        <span class="nx">length</span><span class="o">:</span> <span class="kd">function</span> <span class="p">()</span> <span class="p">{</span>
+            <span class="kd">var</span> <span class="nx">count</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">key</span><span class="p">;</span>
+
+            <span class="k">for</span> <span class="p">(</span><span class="nx">key</span> <span class="k">in</span> <span class="nx">data</span><span class="p">)</span> <span class="p">{</span>
+                <span class="k">if</span> <span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">hasOwnProperty</span><span class="p">(</span><span class="nx">key</span><span class="p">))</span> <span class="p">{</span>
+                    <span class="nx">count</span> <span class="o">+=</span> <span class="mi">1</span><span class="p">;</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+
+            <span class="k">return</span> <span class="nx">count</span><span class="p">;</span>
+        <span class="p">},</span>
+
+        <span class="nx">removeItem</span><span class="o">:</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">key</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">delete</span> <span class="nx">data</span><span class="p">[</span><span class="nx">key</span><span class="p">];</span>
+            <span class="nx">StorageLite</span><span class="p">.</span><span class="nx">_save</span><span class="p">();</span>
+        <span class="p">},</span>
+
+        <span class="nx">setItem</span><span class="o">:</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">key</span><span class="p">,</span> <span class="nx">value</span><span class="p">,</span> <span class="nx">json</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">data</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span> <span class="o">=</span> <span class="nx">value</span><span class="p">;</span>
+            <span class="nx">StorageLite</span><span class="p">.</span><span class="nx">_save</span><span class="p">();</span>
+        <span class="p">}</span>
+
+    <span class="p">},</span> <span class="kc">true</span><span class="p">);</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="nx">storageMode</span> <span class="o">===</span> <span class="nx">MODE_DB</span><span class="p">)</span> <span class="p">{</span>
+
+        <span class="c1">// Database storage methods. Supported by Safari 3.1 and 3.2.</span>
+        <span class="nx">storageDriver</span> <span class="o">=</span> <span class="nx">w</span><span class="p">.</span><span class="nx">openDatabase</span><span class="p">(</span><span class="nx">DB_NAME</span><span class="p">,</span> <span class="nx">DB_VERSION</span><span class="p">,</span> <span class="nx">DB_DISPLAYNAME</span><span class="p">,</span> <span class="nx">DB_MAXSIZE</span><span class="p">);</span>
+
+        <span class="nx">Y</span><span class="p">.</span><span class="nx">mix</span><span class="p">(</span><span class="nx">StorageLite</span><span class="p">,</span> <span class="p">{</span>
+            <span class="nx">_save</span><span class="o">:</span> <span class="kd">function</span> <span class="p">()</span> <span class="p">{</span>
+                <span class="nx">storageDriver</span><span class="p">.</span><span class="nx">transaction</span><span class="p">(</span><span class="kd">function</span> <span class="p">(</span><span class="nx">t</span><span class="p">)</span> <span class="p">{</span>
+                    <span class="nx">t</span><span class="p">.</span><span class="nx">executeSql</span><span class="p">(</span><span class="s2">&quot;REPLACE INTO &quot;</span> <span class="o">+</span> <span class="nx">DB_NAME</span> <span class="o">+</span> <span class="s2">&quot; (name, value) VALUES (&#39;data&#39;, ?)&quot;</span><span class="p">,</span> <span class="p">[</span><span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">data</span><span class="p">)]);</span>
+                <span class="p">});</span>
+            <span class="p">}</span>
+        <span class="p">},</span> <span class="kc">true</span><span class="p">);</span>
+
+        <span class="nx">storageDriver</span><span class="p">.</span><span class="nx">transaction</span><span class="p">(</span><span class="kd">function</span> <span class="p">(</span><span class="nx">t</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">t</span><span class="p">.</span><span class="nx">executeSql</span><span class="p">(</span><span class="s2">&quot;CREATE TABLE IF NOT EXISTS &quot;</span> <span class="o">+</span> <span class="nx">DB_NAME</span> <span class="o">+</span> <span class="s2">&quot;(name TEXT PRIMARY KEY, value TEXT NOT NULL)&quot;</span><span class="p">);</span>
+            <span class="nx">t</span><span class="p">.</span><span class="nx">executeSql</span><span class="p">(</span><span class="s2">&quot;SELECT value FROM &quot;</span> <span class="o">+</span> <span class="nx">DB_NAME</span> <span class="o">+</span> <span class="s2">&quot; WHERE name = &#39;data&#39;&quot;</span><span class="p">,</span> <span class="p">[],</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">t</span><span class="p">,</span> <span class="nx">results</span><span class="p">)</span> <span class="p">{</span>
+                <span class="k">if</span> <span class="p">(</span><span class="nx">results</span><span class="p">.</span><span class="nx">rows</span><span class="p">.</span><span class="nx">length</span><span class="p">)</span> <span class="p">{</span>
+                    <span class="k">try</span> <span class="p">{</span>
+                        <span class="nx">data</span> <span class="o">=</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">results</span><span class="p">.</span><span class="nx">rows</span><span class="p">.</span><span class="nx">item</span><span class="p">(</span><span class="mi">0</span><span class="p">).</span><span class="nx">value</span><span class="p">);</span>
+                    <span class="p">}</span> <span class="k">catch</span> <span class="p">(</span><span class="nx">ex</span><span class="p">)</span> <span class="p">{</span>
+                        <span class="nx">data</span> <span class="o">=</span> <span class="p">{};</span>
+                    <span class="p">}</span>
+                <span class="p">}</span>
+
+                <span class="nx">StorageLite</span><span class="p">.</span><span class="nx">fire</span><span class="p">(</span><span class="nx">EVT_READY</span><span class="p">);</span>
+            <span class="p">});</span>
+        <span class="p">});</span>
+
+    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="nx">storageMode</span> <span class="o">===</span> <span class="nx">MODE_USERDATA</span><span class="p">)</span> <span class="p">{</span>
+
+        <span class="c1">// userData storage methods. Supported by IE5, 6, and 7.</span>
+        <span class="nx">storageDriver</span> <span class="o">=</span> <span class="nx">d</span><span class="p">.</span><span class="nx">createElement</span><span class="p">(</span><span class="s1">&#39;span&#39;</span><span class="p">);</span>
+        <span class="nx">storageDriver</span><span class="p">.</span><span class="nx">addBehavior</span><span class="p">(</span><span class="s1">&#39;#default#userData&#39;</span><span class="p">);</span>
+
+        <span class="nx">Y</span><span class="p">.</span><span class="nx">mix</span><span class="p">(</span><span class="nx">StorageLite</span><span class="p">,</span> <span class="p">{</span>
+            <span class="nx">_save</span><span class="o">:</span> <span class="kd">function</span> <span class="p">()</span> <span class="p">{</span>
+                <span class="kd">var</span> <span class="nx">_data</span> <span class="o">=</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">data</span><span class="p">);</span>
+
+                <span class="k">try</span> <span class="p">{</span>
+                    <span class="nx">storageDriver</span><span class="p">.</span><span class="nx">setAttribute</span><span class="p">(</span><span class="nx">USERDATA_NAME</span><span class="p">,</span> <span class="nx">_data</span><span class="p">);</span>
+                    <span class="nx">storageDriver</span><span class="p">.</span><span class="nx">save</span><span class="p">(</span><span class="nx">USERDATA_PATH</span><span class="p">);</span>
+                <span class="p">}</span> <span class="k">catch</span> <span class="p">(</span><span class="nx">ex</span><span class="p">)</span> <span class="p">{</span>
+                    <span class="k">throw</span> <span class="k">new</span> <span class="nx">Y</span><span class="p">.</span><span class="nx">StorageFullError</span><span class="p">();</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+        <span class="p">},</span> <span class="kc">true</span><span class="p">);</span>
+
+        <span class="nx">Y</span><span class="p">.</span><span class="nx">on</span><span class="p">(</span><span class="s1">&#39;domready&#39;</span><span class="p">,</span> <span class="kd">function</span> <span class="p">()</span> <span class="p">{</span>
+            <span class="nx">d</span><span class="p">.</span><span class="nx">body</span><span class="p">.</span><span class="nx">appendChild</span><span class="p">(</span><span class="nx">storageDriver</span><span class="p">);</span>
+            <span class="nx">storageDriver</span><span class="p">.</span><span class="nx">load</span><span class="p">(</span><span class="nx">USERDATA_PATH</span><span class="p">);</span>
+
+            <span class="k">try</span> <span class="p">{</span>
+                <span class="nx">data</span> <span class="o">=</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">storageDriver</span><span class="p">.</span><span class="nx">getAttribute</span><span class="p">(</span><span class="nx">USERDATA_NAME</span><span class="p">));</span>
+            <span class="p">}</span> <span class="k">catch</span> <span class="p">(</span><span class="nx">ex</span><span class="p">)</span> <span class="p">{</span>
+                <span class="nx">data</span> <span class="o">=</span> <span class="p">{};</span>
+            <span class="p">}</span>
+
+            <span class="nx">StorageLite</span><span class="p">.</span><span class="nx">fire</span><span class="p">(</span><span class="nx">EVT_READY</span><span class="p">);</span>
+        <span class="p">});</span>
+
+    <span class="p">}</span>
+
+<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+
+    <span class="c1">// Fire the ready event for browsers that only support the noop mode.</span>
+    <span class="nx">StorageLite</span><span class="p">.</span><span class="nx">fire</span><span class="p">(</span><span class="nx">EVT_READY</span><span class="p">);</span>
+
+<span class="p">}</span>
+
+<span class="p">},</span> <span class="s1">&#39;1.0.0&#39;</span><span class="p">,</span> <span class="p">{</span>
+    <span class="nx">requires</span><span class="o">:</span> <span class="p">[</span><span class="s1">&#39;event-base&#39;</span><span class="p">,</span> <span class="s1">&#39;event-custom&#39;</span><span class="p">,</span> <span class="s1">&#39;event-custom-complex&#39;</span><span class="p">,</span> <span class="s1">&#39;json&#39;</span><span class="p">]</span>
+<span class="p">});</span>
+</pre></div>
