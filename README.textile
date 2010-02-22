@@ -13,7 +13,7 @@ When minified, Storage Lite weighs in at about 2.6KB before gzip, making it idea
 
 h2. Example
 
-See @sandbox/example.html@ for a usage example.
+See the @examples@ directory for usage examples.
 
 h2. Caveats
 
