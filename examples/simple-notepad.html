@@ -38,7 +38,7 @@ YUI().use('gallery-storage-lite', 'node-base', function (Y) {
         notes.set('value', Y.StorageLite.getItem('notes') || '');
 
         // Save the contents of the textarea after each keystroke.
-        notes.on('keyup', function (e) {
+        notes.on('keyup', function () {
             Y.StorageLite.setItem('notes', notes.get('value'));
         });
     });
