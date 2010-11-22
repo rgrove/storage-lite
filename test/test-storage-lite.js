@@ -1,4 +1,4 @@
-var Y = YUI({logInclude: {TestRunner: true}}).use('console', 'test', 'gallery-storage-lite', function (Y) {
+var Y = YUI().use('console', 'test', 'gallery-storage-lite', function (Y) {
 
 var testCase = new Y.Test.Case({
     name: 'storage-lite tests',
@@ -60,11 +60,10 @@ Y.Test.Runner.add(testCase);
 var yconsole = new Y.Console({
     height     : '500px',
     newestOnTop: false,
+    render     : '#log',
     style      : 'block',
     width      : '100%'
 });
-
-yconsole.render('#log');
 
 Y.StorageLite.on('storage-lite:ready', function () { Y.Test.Runner.run(); });
 
