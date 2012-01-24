@@ -5,9 +5,30 @@
     <title>storage-lite test</title>
 </head>
 <body class="yui3-skin-sam">
-    <div id="log"></div>
-    <script src="http://yui.yahooapis.com/3.2.0/build/yui/yui-min.js"></script>
-    <script src="storage-lite.js"></script>
-    <script src="test-storage-lite.js"></script>
+
+<div id="log"></div>
+
+<script src="http://yui.yahooapis.com/3.5.0pr1/build/yui/yui-min.js"></script>
+<script src="../src/storage-lite.js"></script>
+<Script src="storage-lite-test.js"></script>
+<script>
+var Y = YUI({
+    modules: {
+        'storage-lite-test': {
+            fullpath: 'storage-lite-test.js',
+            requires: ['gallery-storage-lite', 'test']
+        }
+    }
+}).use('storage-lite-test', 'test-console', function (Y) {
+    new Y.Test.Console().render('#log');
+
+    Y.Test.Runner.add(Y.StorageLiteTest);
+
+    Y.StorageLite.on('storage-lite:ready', function () {
+        Y.Test.Runner.run();
+    });
+});
+</script>
+
 </body>
 </html>

@@ -1,7 +1,9 @@
-var Y = YUI().use('console', 'test', 'gallery-storage-lite', function (Y) {
+YUI.add('storage-lite-test', function (Y) {
 
-var testCase = new Y.Test.Case({
-    name: 'storage-lite tests',
+Y.StorageLiteTest = new Y.Test.Suite('storage-lite');
+
+Y.StorageLiteTest.add(new Y.Test.Case({
+    name: 'General',
 
     setUp: function () {
         Y.StorageLite.clear();
@@ -24,7 +26,7 @@ var testCase = new Y.Test.Case({
 
         Y.StorageLite.setItem('foo', foo, true);
         item = Y.StorageLite.getItem('foo', true);
-        
+
         Y.Assert.isObject(item);
         Y.Assert.areSame(item.bar, foo.bar);
     },
@@ -53,18 +55,8 @@ var testCase = new Y.Test.Case({
         Y.StorageLite.removeItem('foo');
         Y.Assert.areSame(Y.StorageLite.length(), 0);
     }
-});
+}));
 
-Y.Test.Runner.add(testCase);
-
-var yconsole = new Y.Console({
-    height     : '500px',
-    newestOnTop: false,
-    render     : '#log',
-    style      : 'block',
-    width      : '100%'
-});
-
-Y.StorageLite.on('storage-lite:ready', function () { Y.Test.Runner.run(); });
-
+}, '0.0.0', {
+    requires: ['gallery-storage-lite', 'test']
 });
