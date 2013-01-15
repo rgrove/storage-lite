@@ -20,15 +20,33 @@ var Y = YUI({
         }
     }
 }).use('storage-lite-test', 'test-console', function (Y) {
+
     new Y.Test.Console().render('#log');
 
     Y.Test.Runner.add(Y.StorageLiteTest);
 
     Y.StorageLite.on('storage-lite:ready', function () {
+        Y.log('running tests…');
         Y.Test.Runner.run();
     });
+
+    // Issue #5: iOS 5/5.1 loses reference to storageDriver when page is restored from bfcache
+    if (~Y.config.win.location.search.indexOf('bfcache')) {
+        history.go(-1);
+        return;
+    }
+    // listen for pageshow event and run tests again
+    Y.Node.DOM_EVENTS.pageshow = 1;
+    Y.on('pageshow', function () {
+        Y.log('page restored from bfcache, running tests again…');
+        Y.Test.Runner.run();
+    }, Y.config.win);
+    // END Issue #5 test
+
 });
 </script>
+
+<p><a href="?bfcache">Test bfcache bug (issue #5)</a></p>
 
 </body>
 </html>
