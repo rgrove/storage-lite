@@ -9,8 +9,6 @@
  * @module gallery-storage-lite
  */
 
-YUI.add('gallery-storage-lite', function (Y) {
-
 // -- Shorthand ----------------------------------------------------------------
 var d           = Y.config.doc,
     w           = Y.config.win,
@@ -325,9 +323,3 @@ if (storageMode === MODE_HTML5 || storageMode === MODE_GECKO) {
     StorageLite.fire(EVT_READY);
 
 }
-
-}, '1.0.0', {
-    requires: [
-        'event-base', 'event-custom', 'event-custom-complex', 'json', 'node-base'
-    ]
-});
