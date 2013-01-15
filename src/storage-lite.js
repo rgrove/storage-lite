@@ -168,6 +168,11 @@ if (storageMode === MODE_HTML5 || storageMode === MODE_GECKO) {
         // Safari 4+, Chrome 4+, and Opera 10.5+.
         storageDriver = w.localStorage;
 
+        // Issue #5: Mobile Safari in iOS 5 loses track of storageDriver when
+        // page is restored from bfcache. This fixes the reference.
+        Y.Node.DOM_EVENTS.pageshow = 1;
+        Y.on('pageshow', function () { storageDriver = w.localStorage; }, w);
+
         Y.mix(StorageLite, {
             clear: function () {
                 storageDriver.clear();
