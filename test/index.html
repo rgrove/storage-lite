@@ -30,18 +30,18 @@ var Y = YUI({
         Y.Test.Runner.run();
     });
 
-    // Issue #5: iOS 5/5.1 loses reference to storageDriver when page is restored from bfcache
+    // iOS 5/5.1 loses reference to storageDriver when page is restored from bfcache
     if (~Y.config.win.location.search.indexOf('bfcache')) {
         history.go(-1);
         return;
     }
+
     // listen for pageshow event and run tests again
     Y.Node.DOM_EVENTS.pageshow = 1;
     Y.on('pageshow', function () {
         Y.log('page restored from bfcache, running tests again…');
         Y.Test.Runner.run();
-    }, Y.config.win);
-    // END Issue #5 test
+    });
 
 });
 </script>
