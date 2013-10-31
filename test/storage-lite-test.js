@@ -54,6 +54,21 @@ Y.StorageLiteTest.add(new Y.Test.Case({
         Y.Assert.areSame(Y.StorageLite.length(), 1);
         Y.StorageLite.removeItem('foo');
         Y.Assert.areSame(Y.StorageLite.length(), 0);
+    },
+
+    testIE67GetAttribute: function () {
+        Y.all('*').each(function(node) {
+            try {
+                // in IE6/7, make sure accessing getAttribute does not throw error,
+                // when it gets to the span element (created by gallery-storage-lite)
+                // to persist user data across page loads via added behavior.
+                var canAccess = !!node._node.getAttribute;
+                Y.Assert.isTrue(canAccess);
+            } catch (err) {
+                // do not expect err. if there is error, consider as failure
+                Y.Assert.fail("should not throw error: " + err.message);
+            }
+        });
     }
 }));
 
