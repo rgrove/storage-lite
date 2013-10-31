@@ -293,11 +293,16 @@ if (storageMode === MODE_HTML5 || storageMode === MODE_GECKO) {
             _save: function () {
                 var _data = JSON.stringify(data);
 
+                d.body.appendChild(storageDriver);
                 try {
                     storageDriver.setAttribute(USERDATA_NAME, _data);
                     storageDriver.save(USERDATA_PATH);
                 } catch (ex) {
                     throw new Y.StorageFullError();
+                } finally {
+                    // remove the storageDriver span from page, so that IE6/7 won't throw error
+                    // when someone tries to access getAttribute property on this span element.
+                    d.body.removeChild(storageDriver);
                 }
             }
         }, true);
@@ -310,6 +315,10 @@ if (storageMode === MODE_HTML5 || storageMode === MODE_GECKO) {
                 data = JSON.parse(storageDriver.getAttribute(USERDATA_NAME) || '{}');
             } catch (ex) {
                 data = {};
+            } finally {
+                // remove the storageDriver span from page, so that IE6/7 won't throw error
+                // when someone tries to access getAttribute property on this span element.
+                d.body.removeChild(storageDriver);
             }
 
             StorageLite.fire(EVT_READY);
